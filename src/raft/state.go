@@ -32,6 +32,10 @@ type LogEntry struct {
 	Command interface{}
 }
 
+func (entry LogEntry) String() string {
+	return fmt.Sprintf("Term: %d, Command: %v", entry.Term, entry.Command)
+}
+
 type ServerState struct {
 	numPeers int
 	me       int
@@ -61,48 +65,17 @@ func (state *ServerState) Initialize(numPeers int, me int) {
 	state.state = FollowerState
 	state.currentTerm = 0
 	state.votedFor = -1
-	state.log = make([]LogEntry, 0)
 	state.commitIndex = 0
 	state.lastApplied = 0
-}
-
-func (state *ServerState) ToFollower(term int) {
-	state.state = FollowerState
-	state.currentTerm = term
-	state.votedFor = -1
-	state.lastElectionTime = time.Now()
-	DPrintf("%v\n", state)
-}
-
-func (state *ServerState) ToLeader() {
-	state.state = LeaderState
-	state.votedFor = -1
-
-	state.nextIndex = make([]int, state.numPeers)
-	state.matchIndex = make([]int, state.numPeers)
-	for i := 0; i < state.numPeers; i++ {
-		state.nextIndex[i] = len(state.log)
-		state.matchIndex[i] = 0
-	}
-	DPrintf("%v\n", state)
-}
-
-func (state *ServerState) ToCandidate() {
-	state.state = CandidateState
-	state.lastElectionTime = time.Now()
-	DPrintf("%v\n", state)
+	state.log = append(state.log, LogEntry{Term: state.currentTerm, Command: nil})
 }
 
 func (state *ServerState) IsLogUptoDate(logIndex, logTerm int) bool {
-	if len(state.log) == 0 {
-		return true
-	}
-
-	lastLog := state.log[len(state.log)-1]
+	lastLog := state.log[state.LastLogIndex()]
 
 	// If the logs end with the same term, the longer log is more up-to-date.
 	if lastLog.Term == logTerm {
-		return len(state.log) < logIndex
+		return state.LastLogIndex() <= logIndex
 	}
 
 	// Else, the log with the higher term is more up-to-date.
@@ -133,9 +106,9 @@ func (state *ServerState) String() string {
 	str = fmt.Appendf(str, "CommitIndex: %d, ", state.commitIndex)
 	str = fmt.Appendf(str, "LastApplied: %d, ", state.lastApplied)
 	str = fmt.Appendf(str, "Log: %v, ", state.log)
+	if state.state == LeaderState {
+		str = fmt.Appendf(str, "NextIndex: %v, ", state.nextIndex)
+		str = fmt.Appendf(str, "MatchIndex: %v, ", state.matchIndex)
+	}
 	return string(str)
 }
-
-/*
-Apna College courses have provided me with a strong foundation in C++ and Web development. I am now ready to move beyond theoretical knowledge and gain practical experience, which is why I am excited about this internship. I believe this internship will provide the perfect environment for me to further develop my skills, ultimately allowing me to contribute back to the community that has helped me grow.
-*/

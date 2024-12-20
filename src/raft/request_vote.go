@@ -1,6 +1,9 @@
 package raft
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 // example RequestVote RPC arguments structure.
 // field names must start with capital letters!
@@ -30,11 +33,21 @@ func (reply *RequestVoteReply) Grant(term int) {
 	reply.VoteGranted = true
 }
 
+func (args *RequestVoteArgs) String() string {
+	return fmt.Sprintf("RV{Term: %d, CandidateId: %d, LastLogIndex: %d, LastLogTerm: %d}",
+		args.Term, args.CandidateId, args.LastLogIndex, args.LastLogTerm)
+}
+
+func (args *RequestVoteReply) String() string {
+	return fmt.Sprintf("RV{Term: %d, VoteGranted: %v}", args.Term, args.VoteGranted)
+}
+
 // example RequestVote RPC handler.
 func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here (3A, 3B).
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
+	defer DPrintf("%v: RequestVote(%v) -> %v", &rf.state, args, reply)
 	if args.Term < rf.Term() {
 		reply.Reject(rf.Term())
 		return
@@ -49,10 +62,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		(rf.isLogUptoDate(args.LastLogIndex, args.LastLogTerm)) {
 		rf.Vote(args.CandidateId)
 		reply.Grant(rf.Term())
-
-		DPrintf("%v granted vote to %d", &rf.state, args.CandidateId)
 	} else {
 		reply.Reject(rf.Term())
-		DPrintf("%v rejected vote to %d", &rf.state, args.CandidateId)
 	}
 }

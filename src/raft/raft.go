@@ -20,8 +20,11 @@ package raft
 import (
 	//	"bytes"
 
+	"os"
+	"os/signal"
 	"sync"
 	"sync/atomic"
+	"syscall"
 
 	//	"6.5840/labgob"
 	"6.5840/labrpc"
@@ -63,6 +66,8 @@ type Raft struct {
 	state ServerState
 
 	applyCh chan ApplyMsg
+
+	signalCh chan os.Signal
 }
 
 // return currentTerm and whether this server
@@ -194,12 +199,14 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	index := -1
 	term, isLeader := rf.GetState()
 
+	DPrintf("Appending %v", command)
 	// Your code here (3B).
 	if isLeader {
 		rf.mu.Lock()
 		defer rf.mu.Unlock()
 		index = rf.state.LastLogIndex() + 1
 		rf.state.Append(LogEntry{Term: term, Command: command})
+		DPrintf("%v", &rf.state)
 	}
 
 	return index, term, isLeader
@@ -215,6 +222,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 // confusing debug output. any goroutine with a long-running loop
 // should call killed() to check whether it should stop.
 func (rf *Raft) Kill() {
+	D()
 	atomic.StoreInt32(&rf.dead, 1)
 	// Your code here, if desired.
 }
@@ -238,7 +246,6 @@ func (rf *Raft) ticker() {
 
 		case LeaderState:
 			rf.mu.Unlock()
-			// rf.RunLeader()
 
 		case CandidateState:
 			rf.mu.Unlock()
@@ -264,6 +271,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 	rf.state.Initialize(len(peers), me)
 	rf.applyCh = applyCh
+	rf.signalCh = make(chan os.Signal)
+	signal.Notify(rf.signalCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	// Your initialization code here (3A, 3B, 3C).
 
 	// initialize from state persisted before a crash
@@ -271,6 +280,18 @@ func Make(peers []*labrpc.ClientEnd, me int,
 
 	// start ticker goroutine to start elections
 	go rf.ticker()
+
+	DPrintf("Initialized Raft %v", me)
+
+	go func() {
+		<-rf.signalCh
+		err := D()
+		if err != nil {
+			panic(err)
+		}
+		rf.Kill()
+		panic("Stopped")
+	}()
 
 	return rf
 }

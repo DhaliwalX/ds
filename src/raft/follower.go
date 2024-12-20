@@ -5,6 +5,15 @@ import (
 	"time"
 )
 
+func (state *ServerState) ToFollower(term int) {
+	oldState := state.state
+	state.state = FollowerState
+	state.currentTerm = term
+	state.votedFor = -1
+	state.lastElectionTime = time.Now()
+	DPrintf("%v: ToFollower from %v\n", state, oldState)
+}
+
 func (rf *Raft) RunFollower() {
 	electionTimeout := time.Duration(50+(rand.Int63()%300)) * time.Millisecond
 	time.Sleep(electionTimeout)

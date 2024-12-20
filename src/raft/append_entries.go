@@ -1,6 +1,9 @@
 package raft
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type AppendEntriesArgs struct {
 	Term         int
@@ -16,12 +19,21 @@ type AppendEntriesReply struct {
 	Success bool
 }
 
+func (args *AppendEntriesArgs) String() string {
+	return fmt.Sprintf("AE{Term: %d, LeaderId: %d, PrevLogIndex: %d, PrevLogTerm: %d, Entries: %v, LeaderCommit: %d}",
+		args.Term, args.LeaderId, args.PrevLogIndex, args.PrevLogTerm, args.Entries, args.LeaderCommit)
+}
+
+func (reply *AppendEntriesReply) String() string {
+	return fmt.Sprintf("AE{Term: %d, Success: %v}", reply.Term, reply.Success)
+}
+
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
+	defer DPrintf("%v, AppendEntries(%v) -> %v", &rf.state, args, reply)
 	rf.state.lastElectionTime = time.Now()
 	// DPrintf("%d> AppendEntries(%v, %v) for %v", rf.me, args, reply, rf.Term())
-	DPrintf("%v", rf.state.String())
 	if args.Term < rf.Term() {
 		reply.Success = false
 		reply.Term = rf.Term()
@@ -35,9 +47,14 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// Log mismatch.
 	if (args.PrevLogIndex <= rf.state.LastLogIndex() &&
-		rf.state.LastLogTerm() != args.PrevLogTerm) ||
+		rf.state.log[args.PrevLogIndex].Term != args.PrevLogTerm) ||
 		(args.PrevLogIndex > rf.state.LastLogIndex()) {
 		reply.Success = false
+
+		// Truncate conflicting logs
+		if args.PrevLogIndex <= rf.state.LastLogIndex() {
+			rf.state.log = rf.state.log[:args.PrevLogIndex]
+		}
 		return
 	}
 

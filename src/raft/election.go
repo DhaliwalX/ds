@@ -4,7 +4,10 @@ package raft
 
 func (rf *Raft) RunElection() {
 	rf.mu.Lock()
-	rf.state.ToCandidate()
+	if rf.state.state != CandidateState {
+		rf.mu.Unlock()
+		return
+	}
 	rf.state.currentTerm++
 	rf.Vote(rf.me)
 	currentTerm := rf.Term()
