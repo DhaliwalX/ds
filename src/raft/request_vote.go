@@ -53,6 +53,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		return
 	}
 
+	defer rf.persist()
 	if args.Term > rf.Term() {
 		rf.state.ToFollower(args.Term)
 	}

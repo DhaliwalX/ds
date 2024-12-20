@@ -33,7 +33,7 @@ type LogEntry struct {
 }
 
 func (entry LogEntry) String() string {
-	return fmt.Sprintf("Term: %d, Command: %v", entry.Term, entry.Command)
+	return fmt.Sprintf("{T: %d C: %v}", entry.Term, entry.Command)
 }
 
 type ServerState struct {

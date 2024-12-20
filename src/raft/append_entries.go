@@ -44,19 +44,18 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		rf.state.ToFollower(args.Term)
 	}
 	reply.Term = rf.Term()
+	defer rf.persist()
 
 	// Log mismatch.
 	if (args.PrevLogIndex <= rf.state.LastLogIndex() &&
 		rf.state.log[args.PrevLogIndex].Term != args.PrevLogTerm) ||
 		(args.PrevLogIndex > rf.state.LastLogIndex()) {
 		reply.Success = false
-
-		// Truncate conflicting logs
-		if args.PrevLogIndex <= rf.state.LastLogIndex() {
-			rf.state.log = rf.state.log[:args.PrevLogIndex]
-		}
 		return
 	}
+
+	// Truncate conflicting logs
+	rf.state.log = rf.state.log[:args.PrevLogIndex+1]
 
 	// At this stage, logs have matched and we can proceed with the append.
 	reply.Success = true

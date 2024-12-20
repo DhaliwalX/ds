@@ -14,6 +14,7 @@ func (rf *Raft) RunElection() {
 	candidateId := rf.me
 	lastLogIndex := rf.state.LastLogIndex()
 	lastLogTerm := rf.state.LastLogTerm()
+	rf.persist()
 	rf.mu.Unlock()
 
 	votes := 1 // 1 for self vote.
@@ -48,6 +49,7 @@ func (rf *Raft) RunElection() {
 						go rf.RunLeader()
 					}
 				}
+				rf.persist()
 			}
 		}(i)
 	}

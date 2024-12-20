@@ -20,13 +20,13 @@ package raft
 import (
 	//	"bytes"
 
+	"bytes"
 	"os"
-	"os/signal"
 	"sync"
 	"sync/atomic"
-	"syscall"
 
 	//	"6.5840/labgob"
+	"6.5840/labgob"
 	"6.5840/labrpc"
 )
 
@@ -95,6 +95,15 @@ func (rf *Raft) persist() {
 	// e.Encode(rf.yyy)
 	// raftstate := w.Bytes()
 	// rf.persister.Save(raftstate, nil)
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+	e.Encode(rf.state.currentTerm)
+	e.Encode(rf.state.votedFor)
+	e.Encode(rf.state.log)
+	raftstate := w.Bytes()
+	rf.persister.Save(raftstate, nil)
+
+	DPrintf("%v: Persisted", &rf.state)
 }
 
 // restore previously persisted state.
@@ -115,6 +124,14 @@ func (rf *Raft) readPersist(data []byte) {
 	//   rf.xxx = xxx
 	//   rf.yyy = yyy
 	// }
+	r := bytes.NewBuffer(data)
+	d := labgob.NewDecoder(r)
+	if d.Decode(&rf.state.currentTerm) != nil ||
+		d.Decode(&rf.state.votedFor) != nil ||
+		d.Decode(&rf.state.log) != nil {
+		panic("error decoding")
+	}
+	DPrintf("%v: Restored", &rf.state)
 }
 
 // the service says it has created a snapshot that has
@@ -206,7 +223,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		defer rf.mu.Unlock()
 		index = rf.state.LastLogIndex() + 1
 		rf.state.Append(LogEntry{Term: term, Command: command})
-		DPrintf("%v", &rf.state)
+		rf.persist()
 	}
 
 	return index, term, isLeader
@@ -222,7 +239,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 // confusing debug output. any goroutine with a long-running loop
 // should call killed() to check whether it should stop.
 func (rf *Raft) Kill() {
-	D()
+	// D()
 	atomic.StoreInt32(&rf.dead, 1)
 	// Your code here, if desired.
 }
@@ -271,8 +288,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 	rf.state.Initialize(len(peers), me)
 	rf.applyCh = applyCh
-	rf.signalCh = make(chan os.Signal)
-	signal.Notify(rf.signalCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
+	// rf.signalCh = make(chan os.Signal)
+	// signal.Notify(rf.signalCh, os.Interrupt, syscall.SIGINT, syscall.SIGTERM)
 	// Your initialization code here (3A, 3B, 3C).
 
 	// initialize from state persisted before a crash
@@ -281,17 +298,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// start ticker goroutine to start elections
 	go rf.ticker()
 
-	DPrintf("Initialized Raft %v", me)
-
-	go func() {
-		<-rf.signalCh
-		err := D()
-		if err != nil {
-			panic(err)
-		}
-		rf.Kill()
-		panic("Stopped")
-	}()
+	DPrintf("Initialized Raft %v -> %v", me, &rf.state)
 
 	return rf
 }
